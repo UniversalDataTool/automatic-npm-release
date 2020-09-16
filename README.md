@@ -1,6 +1,6 @@
 # Automatic NPM Release
 
-This cli allows you to quickly create a github workflow that will release your npm modules via the [semantic-release system](https://github.com/semantic-release/semantic-release).
+This cli allows you to quickly create a Github Actions workflow that will release your npm modules via the [semantic-release system](https://github.com/semantic-release/semantic-release).
 
 ## Usage
 
