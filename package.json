@@ -22,9 +22,11 @@
   "dependencies": {
     "boxen": "^4.0.0",
     "chalk": "^2.4.2",
+    "opn": "^6.0.0",
     "prompt-confirm": "^2.0.4"
   },
   "devDependencies": {
-    "@semantic-release/git": "^9.0.0"
+    "@semantic-release/git": "^9.0.0",
+    "eslint": "^7.9.0"
   }
 }

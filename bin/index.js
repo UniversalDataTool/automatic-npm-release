@@ -2,11 +2,13 @@
 
 const chalk = require("chalk")
 const boxen = require("boxen")
-const child_process = require("child_process")
 const Confirm = require("prompt-confirm")
+const opn = require("opn")
+const getReleaseYml = require("../src/get-release-yml.js")
+const getReleaseRc = require("../src/get-release-rc.js")
 
 const greeting = chalk.white.bold(`automatic-npm-release
-version: 1.0.0`)
+version: ${require("../package.json").version}`)
 
 const boxenOptions = {
   padding: 1,
@@ -14,19 +16,19 @@ const boxenOptions = {
   borderStyle: "round",
   borderColor: "green",
 }
-const msgBox = boxen(greeting, boxenOptions)
+boxen(greeting, boxenOptions)
 
 const path = require("path")
 const fs = require("fs")
-const { exec } = require("child_process")
+const { execSync, spawnSync } = require("child_process")
 
 const destinationPath = process.cwd()
 
 const installSemanticRelease = () => {
   return new Promise((resolve, reject) => {
     console.log(chalk`Installing {blue.bold @semantic-release/git} ...`)
-    exec(
-      "yarn add --dev @semantic-release/git",
+    execSync(
+      "npm install --save-dev @semantic-release/git",
       { cwd: destinationPath },
       (err, stdout, stderr) => {
         if (err) {
@@ -43,28 +45,32 @@ const installSemanticRelease = () => {
   })
 }
 
-const copyReleaseRc = (destinationPath) => {
+const installReleaseRc = (destinationPath) => {
   return new Promise((resolve, reject) => {
     console.log(chalk`Creating {blue.bold .releaserc.js} file ...`)
     const destinationReleasercPath = path.join(destinationPath, "/releaserc.js")
-    const sourceReleasercPath = path.join(
-      path.dirname(fs.realpathSync(__filename)),
-      "../.releaserc.js"
-    )
-    fs.copyFile(sourceReleasercPath, destinationReleasercPath, (err) => {
-      if (err) {
-        console.log(chalk`Error creating {red.bold .releaserc.js} file !`)
-        return reject(err)
-      }
-      console.log(chalk`{green.bold .releaserc.js} file created !`)
-      console.log()
-      return resolve()
-    })
+    const content = getReleaseRc()
+    try {
+      fs.writeFileSync(destinationReleasercPath, content)
+    } catch (e) {
+      console.log(chalk`Error creating {red.bold .releaserc.js} file !`)
+      reject(e)
+    }
+    console.log(chalk`{green.bold .releaserc.js} file created !`)
+    resolve()
   })
 }
 
-const copyReleaseYML = (destinationPath) => {
+const installReleaseYML = (destinationPath) => {
   return new Promise((resolve, reject) => {
+    let packageJSON
+    try {
+      packageJSON = JSON.parse(
+        fs.readFileSync(path.join(destinationPath, "package.json"))
+      )
+    } catch (e) {
+      return reject(e)
+    }
     console.log(
       chalk`Creating {blue.bold .github/workflows/release.yml} file ...`
     )
@@ -77,10 +83,11 @@ const copyReleaseYML = (destinationPath) => {
       destinationPath,
       "/.github/workflows"
     )
-    const sourceReleaseYMLPath = path.join(
-      path.dirname(fs.realpathSync(__filename)),
-      "../.github/workflows/release.yml"
-    )
+
+    const sourceReleaseYML = getReleaseYml({
+      testsOn: Boolean(packageJSON.scripts.test),
+      buildsOn: Boolean(packageJSON.scripts.build),
+    })
 
     if (!fs.existsSync(destinationGithubFolder)) {
       fs.mkdirSync(destinationGithubFolder)
@@ -90,19 +97,13 @@ const copyReleaseYML = (destinationPath) => {
       fs.mkdirSync(destinationWorkflowsFolder)
     }
 
-    fs.copyFile(sourceReleaseYMLPath, destinationReleaseYMLPath, (err) => {
-      if (err) {
-        console.log(
-          chalk`Error creating {red.bold .github/workflows/release.yml} file !`
-        )
-        return reject(err)
-      }
-      console.log(
-        chalk`{green.bold .github/workflows/release.yml} file created !`
-      )
-      console.log()
-      return resolve()
-    })
+    fs.writeFileSync(destinationReleaseYMLPath, sourceReleaseYML)
+
+    console.log(
+      chalk`{green.bold .github/workflows/release.yml} file created !`
+    )
+
+    return resolve()
   })
 }
 
@@ -112,23 +113,50 @@ const generateNPMToken = async () => {
       "Do you want to generate an npm token now? (using `npm create token`)"
     ).run()
   ) {
-    child_process.spawn("npm", ["create", "token"], {
+    spawnSync("npm", ["create", "token"], {
       stdio: "inherit",
       shell: true,
     })
   }
 }
 
+const openGithubSecretsPage = async () => {
+  const packageJSON = JSON.parse(
+    fs.readFileSync(path.resolve(destinationPath, "package.json"))
+  )
+  if (!packageJSON.repository) return
+  const repoUrl =
+    typeof packageJSON.repository === "string"
+      ? packageJSON.repository
+      : packageJSON.repository.url
+
+  let repo
+  if (repoUrl.includes("github.com")) {
+    repo = repoUrl.match(/github.com\/([a-zA-Z0-9]+\/[a-zA-Z0-9]+)/)
+  } else if (repoUrl.includes("github:")) {
+    repo = repoUrl.match(/github:([a-zA-Z0-9/]+)/)
+  }
+  if (repo && (await new Confirm("Open your github secrets page?").run())) {
+    opn(`https://github.com/${repo}/settings/secrets`)
+  }
+}
+
 async function main() {
   await installSemanticRelease(destinationPath)
-  await copyReleaseYML(destinationPath)
+  await installReleaseYML(destinationPath)
+  await installReleaseRc(destinationPath)
   console.log(chalk`After merging this, your merges to master will automatically be published.
   Make sure to use the semantic versioning system in your commits.
   e.g. start a commit with "fix: ..."`)
   console.log(
     chalk`Make sure to set {bold NPM_TOKEN} in your github repository secrets !`
   )
-  await generateNPMToken()
+  await generateNPMToken().catch((e) => {
+    console.log(e.toString())
+  })
+  await openGithubSecretsPage().catch((e) => {
+    console.log(e.toString())
+  })
 }
 
 main().catch((e) => {
