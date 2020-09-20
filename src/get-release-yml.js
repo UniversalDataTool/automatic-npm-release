@@ -23,13 +23,13 @@ jobs:
           buildsOn
             ? `\n
       - name: Build
-         run: npm run build`
+        run: npm run build`
             : ""
         }${
     testsOn
       ? `\n
       - name: Run Tests
-         run: npm run test`
+        run: npm run test`
       : ""
   }
       - name: Release
