@@ -20,28 +20,34 @@ boxen(greeting, boxenOptions)
 
 const path = require("path")
 const fs = require("fs")
-const { execSync, spawnSync } = require("child_process")
+const { spawnSync } = require("child_process")
 
 const destinationPath = process.cwd()
 
 const installSemanticRelease = () => {
   return new Promise((resolve, reject) => {
     console.log(chalk`Installing {blue.bold @semantic-release/git} ...`)
-    execSync(
-      "npm install --save-dev @semantic-release/git",
-      { cwd: destinationPath },
-      (err, stdout, stderr) => {
-        if (err) {
-          console.log("Error installing @semantic-release/git")
-          console.log(chalk`Error installing {red.bold @semantic-release/git}`)
-          console.error(err)
-          return reject(err)
-        }
-        console.log(chalk`{green.bold @semantic-release/git} installed !`)
-        console.log()
-        return resolve()
+    try {
+      let spawnArgs
+      if (fs.existsSync(path.resolve(destinationPath, "yarn.lock"))) {
+        spawnArgs = ["yarn", ["add", "--dev", "@semantic-release/git"]]
+      } else {
+        spawnArgs = ["npm", ["install", "--save-dev", "@semantic-release/git"]]
       }
-    )
+      spawnSync(...spawnArgs, {
+        cwd: destinationPath,
+        stdio: "inherit",
+        shell: true,
+      })
+    } catch (err) {
+      console.log("Error installing @semantic-release/git")
+      console.log(chalk`Error installing {red.bold @semantic-release/git}`)
+      console.error(err)
+      return reject(err)
+    }
+    console.log(chalk`{green.bold @semantic-release/git} installed !`)
+    console.log()
+    return resolve()
   })
 }
 
@@ -110,10 +116,10 @@ const installReleaseYML = (destinationPath) => {
 const generateNPMToken = async () => {
   if (
     await new Confirm(
-      "Do you want to generate an npm token now? (using `npm create token`)"
+      "Do you want to generate an npm token now? (using `npm token create`) You'll need to add a token to Github"
     ).run()
   ) {
-    spawnSync("npm", ["create", "token"], {
+    spawnSync("npm", ["token", "create"], {
       stdio: "inherit",
       shell: true,
     })
@@ -132,12 +138,12 @@ const openGithubSecretsPage = async () => {
 
   let repo
   if (repoUrl.includes("github.com")) {
-    repo = repoUrl.match(/github.com\/([a-zA-Z0-9]+\/[a-zA-Z0-9]+)/)
+    repo = repoUrl.match(/github.com\/([a-zA-Z0-9-]+\/[a-zA-Z0-9-]+)/)[1]
   } else if (repoUrl.includes("github:")) {
-    repo = repoUrl.match(/github:([a-zA-Z0-9/]+)/)
+    repo = repoUrl.match(/github:([a-zA-Z0-9/-]+)/)[1]
   }
   if (repo && (await new Confirm("Open your github secrets page?").run())) {
-    opn(`https://github.com/${repo}/settings/secrets`)
+    opn(`https://github.com/${repo}/settings/secrets/new`)
   }
 }
 
@@ -145,18 +151,18 @@ async function main() {
   await installSemanticRelease(destinationPath)
   await installReleaseYML(destinationPath)
   await installReleaseRc(destinationPath)
-  console.log(chalk`After merging this, your merges to master will automatically be published.
-  Make sure to use the semantic versioning system in your commits.
-  e.g. start a commit with "fix: ..."`)
-  console.log(
-    chalk`Make sure to set {bold NPM_TOKEN} in your github repository secrets !`
-  )
   await generateNPMToken().catch((e) => {
     console.log(e.toString())
   })
   await openGithubSecretsPage().catch((e) => {
     console.log(e.toString())
   })
+  console.log(chalk`After merging this, your merges to master will automatically be published.
+  Make sure to use the semantic versioning system in your commits.
+  e.g. start a commit with "fix: ..."`)
+  console.log(
+    chalk`Make sure to set {bold NPM_TOKEN} in your github repository secrets !`
+  )
 }
 
 main().catch((e) => {
