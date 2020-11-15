@@ -1,6 +1,6 @@
 {
   "name": "automatic-npm-release",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "This cli allows you to quickly create a github workflow that will release your npm modules via the [semantic-release system](https://github.com/semantic-release/semantic-release).",
   "main": "bin/index.js",
   "scripts": {
