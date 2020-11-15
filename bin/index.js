@@ -54,7 +54,10 @@ const installSemanticRelease = () => {
 const installReleaseRc = (destinationPath) => {
   return new Promise((resolve, reject) => {
     console.log(chalk`Creating {blue.bold .releaserc.js} file ...`)
-    const destinationReleasercPath = path.join(destinationPath, "/releaserc.js")
+    const destinationReleasercPath = path.join(
+      destinationPath,
+      "/.releaserc.js"
+    )
     const content = getReleaseRc()
     try {
       fs.writeFileSync(destinationReleasercPath, content)
